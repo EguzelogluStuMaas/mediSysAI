@@ -6,7 +6,7 @@ import spacy
 
 from sentiment import analyze_sentiment
 from transcript_parser import Turn, parse_transcript
-
+# anahtar kelimeler şimdilik ingilizce için yapıldı, türkçe için NLP kütüphanesi bulunacak ve eklenecektir
 DEFAULT_RESOLUTION_KEYWORDS: tuple[str, ...] = (
     "agreement",
     "agreed",
@@ -50,7 +50,7 @@ _DISCOURSE_CONNECTORS: tuple[str, ...] = (
 
 _nlp_instance: spacy.language.Language | None = None
 
-
+# Metni cümlelere ayırmak için temel bir spaCy NLP yapısı oluşturur.
 def _nlp() -> spacy.language.Language:
     global _nlp_instance
     if _nlp_instance is None:
@@ -59,7 +59,7 @@ def _nlp() -> spacy.language.Language:
         _nlp_instance = nlp
     return _nlp_instance
 
-
+# Metnin hece sayısını hesaplar.
 def _count_syllables(word: str) -> int:
     word = word.lower()
     vowels = "aeiouy"
@@ -74,21 +74,21 @@ def _count_syllables(word: str) -> int:
         count -= 1
     return max(count, 1)
 
-
+# Belirli konuşmacılara ait konuşma sıralarını filtreler. Kimin sırarı ise onun konuşmasını (iterable) verir.
 def _filter_turns(turns: Sequence[Turn], speakers: Iterable[str] | None) -> list[Turn]:
     if speakers is None:
         return list(turns)
     wanted = {s.lower() for s in speakers}
     return [t for t in turns if t.speaker.lower() in wanted]
 
-
+# Konuşma turlarının duygu analizini hesaplar. A konuşmalarının skoru x B konusşmacısının konuşmalarının skoru y gibi. bu skorların ortalamasını verir.
 def _sentiment_score(turns: Sequence[Turn]) -> float:
     if not turns:
         return 0.0
     scores = [analyze_sentiment(t.text).compound for t in turns]
     return sum(scores) / len(scores)
 
-
+# Açık uçlu soruların sıklığını hesaplar. Bu açkık uçlu sorular OPEN_QUESTION_STARTERS ile başlayan ve soru işareti ile biten cümlelerdir.
 def _open_ended_question_frequency(turns: Sequence[Turn]) -> float:
     if not turns:
         return 0.0
@@ -102,11 +102,12 @@ def _open_ended_question_frequency(turns: Sequence[Turn]) -> float:
             hits += 1
     return hits / len(turns)
 
-
+# Empati ifadelerinin sayısını hesaplar.
 def _empathy_marker_count(joined_text: str) -> int:
     lowered = joined_text.lower()
     return sum(lowered.count(phrase) for phrase in _EMPATHY_PHRASES)
 
+# Dilin karmaşıklığını hesaplar. Ortalama hece sayısı üzerinden bir ölçüm sağlar. Uzun cümleler için daha yüksek bir karmaşıklık değeri döner bu da toplam skordan çıkartılır
 
 def _language_complexity(joined_text: str, nlp: spacy.language.Language) -> float:
     doc = nlp(joined_text)
@@ -116,7 +117,9 @@ def _language_complexity(joined_text: str, nlp: spacy.language.Language) -> floa
     syllables = sum(_count_syllables(w) for w in words)
     return syllables / len(words)
 
-
+# Akıcılık hesabı. Cümle uzunluklarındaki tutarlılık ve bağlaç kullanımına göre bir ölçüm sağlar.
+# Akıcılık skoru 1 - (std_dev / avg_len). (std_dev / avg_len) 0 a yakınsa Cümle uzunlukları birbirine çok yakındır ve oldukça düzenlidir.
+#(std_dev / avg_len) 1 e yakınlaştıkça cümle uzunlukları arasındaki tutarsızlık artar ve akıcılık düşer.
 def _syntactic_coherence(joined_text: str, nlp: spacy.language.Language) -> float:
     doc = nlp(joined_text)
     sentences = [sent for sent in doc.sents if sent.text.strip()]
@@ -140,12 +143,12 @@ def _syntactic_coherence(joined_text: str, nlp: spacy.language.Language) -> floa
 
     return (consistency + connector_ratio) / 2
 
-
+# Anahtar kelimelerin metin içindeki sıklığını hesaplar.
 def _keyword_frequency(joined_text: str, keywords: Sequence[str]) -> dict[str, int]:
     lowered = joined_text.lower()
     return {keyword: lowered.count(keyword.lower()) for keyword in keywords}
 
-
+# Metnin okunabilirlik skorunu hesaplar. Flesch-Kincaid formülüne dayalıdır.
 def _readability_score(joined_text: str, nlp: spacy.language.Language) -> float:
     doc = nlp(joined_text)
     sentences = [sent for sent in doc.sents if sent.text.strip()]
@@ -168,7 +171,7 @@ class TextFeatures:
     keyword_frequency: dict[str, int]
     readability_score: float
 
-
+# Metin özelliklerini çıkarır ve TextFeatures veri sınıfı olarak döner.
 def extract_text_features(
     turns: Sequence[Turn],
     speakers: Iterable[str] | None = None,
@@ -190,6 +193,7 @@ def extract_text_features(
 
 
 @dataclass
+
 class VisualCueFeatures:
     eye_contact_duration: float
     head_tilt_degrees: float
@@ -197,7 +201,7 @@ class VisualCueFeatures:
     body_posture_openness: float
     gesture_frequency: float
 
-
+# mikro ifadeler face_mesh
 def extract_visual_cue_features(frames=None) -> VisualCueFeatures:
     raise NotImplementedError(
         "Visual cue extraction requires video input - not yet available in this pipeline."
@@ -205,18 +209,19 @@ def extract_visual_cue_features(frames=None) -> VisualCueFeatures:
 
 
 @dataclass
+# yüz ifadeleri özellikleri sonra yapılacak
 class ExpressionFeatures:
     emotional_expression: dict[str, float]
     microexpression_frowning_frequency: float
     head_nod_frequency: float
 
-
+# videodan almak için fonksiyon
 def extract_expression_features(frames=None) -> ExpressionFeatures:
     raise NotImplementedError(
         "Facial expression extraction requires video input - not yet available in this pipeline."
     )
 
-
+# ses tonu özellikleri sonra yapılacak
 @dataclass
 class VoiceToneFeatures:
     speech_rate_wpm: float
