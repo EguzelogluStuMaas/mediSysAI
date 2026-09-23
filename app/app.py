@@ -1,3 +1,4 @@
+import os
 import sys
 import re
 from pathlib import Path
@@ -11,8 +12,8 @@ from features import extract_text_features, TextFeatures
 from sentiment import analyze_sentiment
 
 # Load sample transcript
-sample_transcript_path = Path("sample_transcript.txt")
-with open(sample_transcript_path, "r") as f:
+sample_transcript_path = Path(__file__).resolve().parent / "sample_transcript.txt"
+with open(sample_transcript_path, "r", encoding="utf-8") as f:
     raw_text = f.read()
 
 # Parse transcript into turns

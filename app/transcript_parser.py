@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 
-_TURN_PATTERN = re.compile(r"^(?P<speaker>[^:]+):\s*(?P<text>.+)$")
+TURN_PATTERN = re.compile(r"^(?P<speaker>[^:]+):\s*(?P<text>.+)$")
 
 
 @dataclass
@@ -21,7 +21,7 @@ def parse_transcript(raw_text: str) -> list[Turn]:
         line = line.strip()
         if not line:
             continue
-        match = _TURN_PATTERN.match(line)
+        match = TURN_PATTERN.match(line)
         if not match:
             continue
         turns.append(
