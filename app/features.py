@@ -210,7 +210,8 @@ PARTICIPATION_PHRASES = (
     "ne düşünüyorsunuz", "nasıl değerlendiriyorsunuz", "sizin görüşünüz",
     "sizi dinleyelim", "siz ne dersiniz", "anlatır mısınız",
 )
-
+#eşit süre, söz hakkı, arabulucunu rolüne dikkat edildi mi, eşit ilgi endeksi, iletişimde mesafeyi korudu mu( duygusal mesafe)
+#görsel duruş
 
 
 @dataclass
