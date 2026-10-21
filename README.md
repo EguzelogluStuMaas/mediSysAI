@@ -66,6 +66,9 @@ streamlit run app.py
 
 ## Örnek transkript formatı
 
+Çok satırlı konuşmalar, konuşmacı rolleri ve zaman damgalı JSON girdisi için
+[transkript ayrıştırıcı kullanımına](docs/transcript-format.md) bakın.
+
 ```
 Mediator: Thank you both for being here today.
 Party A: I'm frustrated because ...

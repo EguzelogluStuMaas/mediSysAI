@@ -11,7 +11,7 @@ class SentimentResult:
     compound: float
     positive: float
     neutral: float
-    negative: float
+    negative: float 
 
 
 def get_analyzer() -> SentimentIntensityAnalyzer:

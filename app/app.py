@@ -9,7 +9,7 @@ uploaded_file = st.file_uploader(
     "Upload a transcript",
     type=["txt"],
     help=(
-        "Use a UTF-8 text file with one Speaker: text turn per line. "
+        "Use a UTF-8 text file with Speaker: text headers; speech may span multiple lines. "
         "Label the mediator Arabulucu or Mediator for impartiality scoring."
     ),
 )
@@ -33,7 +33,11 @@ if not raw_text.strip():
     st.stop()
 
 # Parse transcript into turns
-turns = parse_transcript(raw_text)
+try:
+    turns = parse_transcript(raw_text)
+except ValueError as error:
+    st.error(str(error))
+    st.stop()
 if not turns:
     st.error("No conversation turns found. Use one Speaker: text turn per line.")
     st.stop()
