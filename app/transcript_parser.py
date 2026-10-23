@@ -9,8 +9,13 @@ Speaker: text convention. All structured timestamps are milliseconds.
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Iterable, Literal
 from uuid import uuid4
+if __package__:
+    from .sentence_splitter import Sentence, split_sentences
+else:
+    from sentence_splitter import Sentence, split_sentences
+
 
 Role = Literal["mediator", "party_a", "party_b", "unknown"]
 ROLES = ("mediator", "party_a", "party_b", "unknown")
@@ -50,6 +55,7 @@ class Turn:
     flags: list[str] = field(default_factory=list)
     text_corrected: str | None = None
     text_original: str = field(init=False)
+    speaker: str = "Unknown"
 
     def __post_init__(self) -> None:
         self.text_original = self.text
@@ -91,7 +97,28 @@ class Transcript:
         speaker = self.speakers[speaker_id]
         speaker.role = role
         speaker.role_confirmed = True
+    
+    def sentences(
+        self, *, remove_stopwords: bool = False, stopwords: Iterable[str] | None = None,
+    ) -> list[Sentence]:
+        """Derive ordered sentences from current text; never cache stale corrections.
 
+        Character offsets refer to each turn's effective text. The registry is
+        authoritative for speaker display names. Sentence times remain unknown.
+        """
+        if isinstance(stopwords, str):
+            raise ValueError("stopwords must be a collection of words, not one string.")
+        words = None if stopwords is None else tuple(stopwords)
+        result: list[Sentence] = []
+        for turn in self.turns:
+            name = self.speakers[turn.speaker_id].display_name if turn.speaker_id else "Unknown"
+            result.extend(split_sentences(
+                turn.text, session_id=self.session_id, turn_id=turn.id,
+                speaker_id=turn.speaker_id, speaker=name, start_index=len(result),
+                remove_stopwords=remove_stopwords, stopwords=words,
+            ))
+        return result
+    
     def select_turns(self, role: Role) -> list[Turn]:
         if role not in ROLES:
             raise ValueError(f"Unsupported speaker role: {role}")
@@ -202,6 +229,7 @@ def _parse_txt(raw_text: str, session_id: str, speaker_labels: list[str] | None)
         transcript.turns.append(Turn(
             index=index, text=text, id=f"turn_{index:04d}", session_id=session_id,
             speaker_id=speaker_id,
+            speaker=transcript.speakers[speaker_id].display_name,
         ))
 
     for line_number, line in enumerate(raw_text.lstrip("\ufeff").splitlines(), start=1):
@@ -258,11 +286,20 @@ def _parse_json(raw_text: str | dict, session_id: str | None) -> Transcript:
                 raise ValueError(f"Turn {index} references an unknown speaker: {speaker_id}")
         original = _nonempty_string(entry.get("text_original"), f"Turn {index} text_original")
         transcript.turns.append(Turn(
-            index=index,
-            text=original, id=entry.get("id", f"turn_{index:04d}"),
-            session_id=transcript.session_id, speaker_id=speaker_id,
-            start_ms=entry.get("start_ms"), end_ms=entry.get("end_ms"),
-            source=entry.get("source", "manual"), flags=entry.get("flags", []),
+                    index=index,
+            text=original,
+            id=entry.get("id", f"turn_{index:04d}"),
+            session_id=transcript.session_id,
+            speaker_id=speaker_id,
+            speaker=(
+                transcript.speakers[speaker_id].display_name
+                if speaker_id is not None
+                else "Unknown"
+            ),
+            start_ms=entry.get("start_ms"),
+            end_ms=entry.get("end_ms"),
+            source=entry.get("source", "manual"),
+            flags=entry.get("flags", []),
             text_corrected=entry.get("text_corrected"),
         ))
     issues = data.get("issues", [])

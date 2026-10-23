@@ -10,7 +10,7 @@ app/
   sentiment.py            NLTK VADER ile cümle/tur bazlı duygu skoru hesaplar
   features.py              Metin özelliklerini çıkarır (bkz. aşağıda); video/ses
                            özellikleri için iskelet sınıflar (henüz uygulanmadı)
-  scoring.py               Boş - genel puanlama mantığı (compute_scores) henüz yazılmadı
+  scoring.py               Cümle bazlı kategori puanları ve konuşmacı özetleri
   app.py        Streamlit arayüzü denemesi
   sample_transcript.txt   Örnek/demo transkript
 database/
@@ -21,6 +21,11 @@ requirements.txt
 ```
 
 ## Mevcut özellikler
+
+- **Cümle bazlı analiz**: Parser çıktısı üzerinde empati, açık uçlu soru, katılım
+  daveti, değerlendirici ve yönlendirici ifadeler; cümle başına kategori puanları,
+  ayrı destekleyici/inceleme toplamları ve konuşmacı özetleri. Yeni dashboard
+  bu hattı kullanır. [Kullanım ve sınırlar](docs/sentence-analysis.md).
 
 - **Transkript ayrıştırma**: `Speaker: text` biçimindeki satırları `Turn` nesnelerine çevirir.
 - **Duygu analizi**: NLTK VADER ile `compound` / `positive` / `neutral` / `negative` skorları.
@@ -35,7 +40,7 @@ requirements.txt
 
 ## Devam eden işler
 
-- `scoring.py` şu anda boş.
+- Türkçe sentiment modelinin seçilmesi ve etiketli veriyle değerlendirilmesi.
 - `VisualCueFeatures`, `ExpressionFeatures`, `VoiceToneFeatures` .
 - `database/init_db.py` ve `scripts/model_trainer.py` ileride doldurulmak üzere oluşturulmuş boş dosyalar.
 
@@ -77,7 +82,7 @@ Party B: That's not fair, ...
 
 ## Yol haritası
 
-- `scoring.py` yapılacak
+- Cümle kurallarının bağlam, alıntı ve olumsuzlama farkındalığının geliştirilmesi
 - `database/init_db.py` veritabanı
 - `scripts/` modeller için
 - Ses tonu ve yüz ifadesi/görüntü tabanlı özelliklerin eklenmesi

@@ -1,7 +1,10 @@
-from dataclasses import dataclass
+from __future__ import annotations
 
-import nltk
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
 analyzer: SentimentIntensityAnalyzer | None = None
 
@@ -15,6 +18,9 @@ class SentimentResult:
 
 
 def get_analyzer() -> SentimentIntensityAnalyzer:
+    import nltk
+    from nltk.sentiment.vader import SentimentIntensityAnalyzer
+
     global analyzer
     if analyzer is None:
         try:

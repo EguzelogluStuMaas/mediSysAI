@@ -1,13 +1,132 @@
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
-from features import (
-    empathy_marker_count,
-    filter_turns,
-    open_ended_question_frequency,
-    extract_impartiality_features
-)
-from transcript_parser import Turn
+if __package__:
+    from .features import (
+        COMMUNICATION_CATEGORIES, REVIEW_CATEGORIES, SUPPORT_CATEGORIES,
+        SentenceFeatures, empathy_marker_count, filter_turns,
+        open_ended_question_frequency, extract_impartiality_features,
+    )
+    from .sentiment import SentimentResult
+    from .transcript_parser import Turn
+else:
+    from features import (
+        COMMUNICATION_CATEGORIES, REVIEW_CATEGORIES, SUPPORT_CATEGORIES,
+        SentenceFeatures, empathy_marker_count, filter_turns,
+        open_ended_question_frequency, extract_impartiality_features,
+    )
+    from sentiment import SentimentResult
+    from transcript_parser import Turn
+
+
+@dataclass
+class SentenceScore:
+    features: SentenceFeatures
+    scores: dict[str, int]
+    support_points: int
+    review_points: int
+
+
+@dataclass
+class SentenceScoreSummary:
+    sentence_count: int
+    category_totals: dict[str, int]
+    category_percentages: dict[str, float | None]
+    support_points: int
+    review_points: int
+    sentiment_count: int
+    sentiment_compound_sum: float | None
+    sentiment_mean: SentimentResult | None
+    resolution_keyword_sentence_counts: dict[str, int]
+
+
+@dataclass
+class SpeakerScoreSummary:
+    session_id: str
+    speaker_id: str | None
+    speaker: str
+    summary: SentenceScoreSummary
+
+
+@dataclass
+class SentenceScoringResult:
+    sentences: list[SentenceScore]
+    overall: SentenceScoreSummary
+    by_speaker: list[SpeakerScoreSummary]
+
+
+def _summarize_sentences(rows: Sequence[SentenceScore]) -> SentenceScoreSummary:
+    count = len(rows)
+    totals = {category: sum(row.scores[category] for row in rows)
+              for category in COMMUNICATION_CATEGORIES}
+    sentiments = [row.features.sentiment for row in rows
+                  if row.features.sentiment is not None]
+    mean = None
+    compound_sum = None
+    if sentiments:
+        compound_sum = sum(value.compound for value in sentiments)
+        mean = SentimentResult(
+            compound=compound_sum / len(sentiments),
+            positive=sum(value.positive for value in sentiments) / len(sentiments),
+            neutral=sum(value.neutral for value in sentiments) / len(sentiments),
+            negative=sum(value.negative for value in sentiments) / len(sentiments),
+        )
+    keywords: dict[str, int] = {}
+    for row in rows:
+        for keyword in row.features.resolution_keywords:
+            keywords[keyword] = keywords.get(keyword, 0) + 1
+    return SentenceScoreSummary(
+        sentence_count=count,
+        category_totals=totals,
+        category_percentages={category: 100.0 * total / count if count else None
+                              for category, total in totals.items()},
+        support_points=sum(row.support_points for row in rows),
+        review_points=sum(row.review_points for row in rows),
+        sentiment_count=len(sentiments),
+        sentiment_compound_sum=compound_sum,
+        sentiment_mean=mean,
+        resolution_keyword_sentence_counts=keywords,
+    )
+
+
+def score_sentence_features(features: Sequence[SentenceFeatures]) -> SentenceScoringResult:
+    """Sum binary category evidence, keeping support and review points separate.
+
+    Each sentence can match several categories. Percentages use the number of
+    selected sentences, not turns or words. Sentiment does not affect these
+    points. No impartiality/competence grade is inferred from phrase counts.
+    Legacy turn-based scoring functions below remain available to old callers.
+    """
+    rows: list[SentenceScore] = []
+    groups: dict[tuple[str, str | None, str], list[SentenceScore]] = {}
+    seen: set[tuple[str, str]] = set()
+    for item in features:
+        sentence = item.sentence
+        identity = (sentence.session_id, sentence.id)
+        if identity in seen:
+            raise ValueError(f"Duplicate sentence: {identity}")
+        seen.add(identity)
+        scores = item.indicators
+        row = SentenceScore(
+            features=item, scores=scores,
+            support_points=sum(scores[name] for name in SUPPORT_CATEGORIES),
+            review_points=sum(scores[name] for name in REVIEW_CATEGORIES),
+        )
+        rows.append(row)
+        # Display names do not identify a speaker; registry IDs do. Unknown
+        # speech is grouped as unassigned, not treated as an inferred person.
+        key = (sentence.session_id, sentence.speaker_id,
+               sentence.speaker if sentence.speaker_id is None else "")
+        groups.setdefault(key, []).append(row)
+    return SentenceScoringResult(
+        sentences=rows,
+        overall=_summarize_sentences(rows),
+        by_speaker=[SpeakerScoreSummary(
+            session_id=key[0], speaker_id=key[1],
+            speaker=group[0].features.sentence.speaker,
+            summary=_summarize_sentences(group),
+        ) for key, group in groups.items()],
+    )
 
 
 # Her ölçüt %10: altı ölçütün toplam ağırlığı %60, en yüksek toplam puan 60.

@@ -1,8 +1,10 @@
 # Transcript parser
 
 The parser uses standard-library dataclasses and does not load speech or NLP
-models. `Turn(index, speaker, text)` and `parse_transcript(text) -> list[Turn]`
-remain available to existing analysis code.
+models. Construct turns with `Turn(index=0, text="...", speaker="Arabulucu")`.
+The first two positional arguments are index and text. `speaker_id` references
+the registry, while `speaker` is a display-name snapshot for legacy analysis.
+`parse_transcript(text) -> list[Turn]` remains available.
 
 ## Manual transcripts
 
@@ -112,6 +114,39 @@ after a correction belongs to the analysis layer, not this parser.
 
 The dashboard currently uploads TXT only; the JSON API is available for future
 audio integration. It displays parser errors instead of a traceback.
+
+## Sentences and preprocessing
+
+`transcript.sentences()` splits each turn using `sentence_splitter.py` and runs
+`preprocessing.py`. Results preserve conversation order, turn/session IDs,
+speaker IDs and registry display names. No new speaker is inferred from sentence
+boundaries. Results are generated on demand so corrected text is not cached.
+
+```python
+sentences = transcript.sentences(remove_stopwords=True)
+for sentence in sentences:
+    sentiment_input = sentence.text
+    optional_bag_of_words = sentence.preprocessing.filtered_tokens
+```
+
+`sentence.text` preserves case, punctuation, negation and connective words; only
+Unicode and whitespace are normalized. Use this input for sentiment/BERT and
+use the model's own tokenizer. Stopword removal is off by default and affects
+only `filtered_tokens` / `feature_text`. It never modifies model text or turns.
+The default stopword list is small and configurable; negation, questions,
+contrast markers and selected pronouns are protected even in custom lists.
+No stemming or automatic spelling correction is applied.
+
+`original_text` and `[start_char:end_char]` refer to the current **effective turn
+text**, before normalization. After a correction they refer to corrected text,
+not `Turn.text_original`. Sentence IDs follow position within the turn; analysis
+results must be refreshed after edits. Sentence timestamps are not guessed from
+the parent interval; use `turn_id` to retrieve the known parent timing.
+
+The regex splitter handles common titles (Dr., Av.), initials, numbers, selected
+legal abbreviations, URLs and quoted-speech attribution. It is heuristic: unusual
+abbreviations and missing punctuation still need review. Plain newlines do not
+imply new sentences or speakers. Document heading extraction is a separate step.
 
 ## Tests
 
