@@ -8,7 +8,11 @@ from transcript_parser import parse_transcript_document
 from features import extract_sentence_features
 from scoring import score_sentence_features
 from sentiment import analyze_sentiment
-from document_reader import DocumentReadError, SUPPORTED_EXTENSIONS, read_document
+from document_reader import (
+    DocumentReadError,
+    SUPPORTED_EXTENSIONS,
+    read_document,
+)
 
 
 CATEGORY_LABELS = {
@@ -27,28 +31,34 @@ uploaded_file = st.file_uploader(
     type=list(SUPPORTED_EXTENSIONS),
     help=(
         "TXT: Konuşmacı: metin başlıkları. "
-        "JSON: speakers ve turns listeleri. DOCX doğrudan okunur; "
-        "DOC için Windows ve masaüstü Microsoft Word gerekir. En fazla 20 MB."
+        "JSON: speakers ve turns listeleri. "
+        "DOCX doğrudan okunur; DOC için Windows ve masaüstü "
+        "Microsoft Word gerekir. En fazla 20 MB."
     ),
 )
 
 
-
-# Transkripti oku
-
+# ---------------------------------------------------------
+# Dosya içeriğini al
+# ---------------------------------------------------------
 
 if uploaded_file is not None:
     filename = uploaded_file.name
     file_bytes = uploaded_file.getvalue()
+
 else:
     sample_path = (
         Path(__file__).resolve().parent / "sample_transcript.txt"
     )
     filename = sample_path.name
+
     try:
         file_bytes = sample_path.read_bytes()
     except OSError:
-        st.info("Örnek dosya bulunamadı. Analiz etmek istediğiniz dosyayı yükleyin.")
+        st.info(
+            "Örnek dosya bulunamadı. "
+            "Analiz etmek istediğiniz dosyayı yükleyin."
+        )
         st.stop()
 
     st.caption(
@@ -56,10 +66,18 @@ else:
         "Kendi dosyanızı yükleyebilirsiniz."
     )
 
-# Keep extraction within this user's session. Widget changes must not reopen
-# Word, and uploading a different document must reset the editable preview.
-input_key = (filename, sha256(file_bytes).hexdigest())
+
+# ---------------------------------------------------------
+# Dosyayı oku ve yalnızca bu oturumda sakla
+# ---------------------------------------------------------
+
+input_key = (
+    filename,
+    sha256(file_bytes).hexdigest(),
+)
+
 cached_input = st.session_state.get("document_source")
+
 if cached_input is None or cached_input["key"] != input_key:
     try:
         with st.spinner("Dosya okunuyor…"):
@@ -67,9 +85,13 @@ if cached_input is None or cached_input["key"] != input_key:
     except DocumentReadError as error:
         st.error(str(error))
         st.stop()
+
     cached_input = {
-        "key": input_key, "input": loaded, "session_id": uuid4().hex,
+        "key": input_key,
+        "input": loaded,
+        "session_id": uuid4().hex,
     }
+
     st.session_state["document_source"] = cached_input
     st.session_state["word_preview_text"] = loaded.text
     st.session_state["word_analysis_text"] = None
@@ -78,36 +100,65 @@ loaded = cached_input["input"]
 raw_text = loaded.text
 source_format = loaded.parser_format
 
+
+# ---------------------------------------------------------
+# Word dosyaları için düzenlenebilir önizleme
+# ---------------------------------------------------------
+
 if loaded.source_format in {"doc", "docx"}:
     st.subheader("Word metnini kontrol et")
+
     for warning in loaded.warnings:
         st.warning(warning)
+
     st.caption(
-        "Konuşmaları 'Arabulucu: ...', 'Taraf A: ...' biçiminde düzenleyin. "
-        "Konuşmacısı belli olmayan ifadeleri tahminle etiketlemeyin. "
-        "Analize almak istemediğiniz başlık ve senaryo açıklamalarını silin."
+        "Konuşmaları 'Arabulucu: ...', 'Taraf A: ...' biçiminde "
+        "düzenleyin. Konuşmacısı belli olmayan ifadeleri tahminle "
+        "etiketlemeyin. Analize almak istemediğiniz başlık ve "
+        "senaryo açıklamalarını silin."
     )
+
     with st.form("word_preview"):
         edited_text = st.text_area(
-            "Analize gönderilecek metin", key="word_preview_text", height=320,
+            "Analize gönderilecek metin",
+            key="word_preview_text",
+            height=320,
         )
-        submitted = st.form_submit_button("Bu metni analiz et")
+
+        submitted = st.form_submit_button(
+            "Bu metni analiz et"
+        )
+
     if submitted:
         st.session_state["word_analysis_text"] = edited_text
+
     if st.session_state["word_analysis_text"] is None:
-        st.info("Metni kontrol edip 'Bu metni analiz et' düğmesine basın.")
+        st.info(
+            "Metni kontrol edip 'Bu metni analiz et' "
+            "düğmesine basın."
+        )
         st.stop()
+
     raw_text = st.session_state["word_analysis_text"]
 
 if not raw_text.strip():
     st.info("Analiz edilecek metin boş.")
     st.stop()
 
+
+# ---------------------------------------------------------
+# Session, konuşmacılar ve konuşma turları
+# ---------------------------------------------------------
+
 try:
     transcript = parse_transcript_document(
         raw_text,
         format=source_format,
-        session_id=(cached_input["session_id"] if source_format == "txt" else None),
+        session_id=(
+            cached_input["session_id"]
+            if source_format == "txt"
+            else None
+        ),
     )
 except ValueError as error:
     st.error(str(error))
@@ -238,7 +289,7 @@ st.caption(
 
 
 # ---------------------------------------------------------
-# Kategori bazında ayrı sonuçlar
+# Kategori bazında sonuçlar
 # ---------------------------------------------------------
 
 st.subheader("Kategori sonuçları")
@@ -259,7 +310,7 @@ st.dataframe(
 
 
 # ---------------------------------------------------------
-# Konuşmacı bazında ayrı sonuçlar
+# Konuşmacı bazında sonuçlar
 # ---------------------------------------------------------
 
 st.subheader("Konuşmacı bazında sonuçlar")
@@ -270,8 +321,12 @@ st.dataframe(
             "Konuşmacı": speaker.speaker,
             "Konuşmacı ID": speaker.speaker_id,
             "Cümle": speaker.summary.sentence_count,
-            "Destekleyici puan": speaker.summary.support_points,
-            "İncelenecek puan": speaker.summary.review_points,
+            "Destekleyici puan": (
+                speaker.summary.support_points
+            ),
+            "İncelenecek puan": (
+                speaker.summary.review_points
+            ),
             **{
                 label: speaker.summary.category_totals[key]
                 for key, label in CATEGORY_LABELS.items()
@@ -303,16 +358,24 @@ if summary.sentiment_mean is not None:
             "Compound ortalaması": (
                 summary.sentiment_mean.compound
             ),
-            "Compound toplamı": summary.sentiment_compound_sum,
-            "Olumlu ortalaması": summary.sentiment_mean.positive,
-            "Nötr ortalaması": summary.sentiment_mean.neutral,
-            "Olumsuz ortalaması": summary.sentiment_mean.negative,
+            "Compound toplamı": (
+                summary.sentiment_compound_sum
+            ),
+            "Olumlu ortalaması": (
+                summary.sentiment_mean.positive
+            ),
+            "Nötr ortalaması": (
+                summary.sentiment_mean.neutral
+            ),
+            "Olumsuz ortalaması": (
+                summary.sentiment_mean.negative
+            ),
         }
     )
 
 
 # ---------------------------------------------------------
-# Her cümlenin sonucu ve eşleşen ifadeler
+# Cümleler ve eşleşen ifadeler
 # ---------------------------------------------------------
 
 st.subheader("Cümleler ve eşleşme kanıtları")
